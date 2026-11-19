@@ -1,0 +1,6 @@
+/bin/
+/obj/
+/source-archives/
+/static-helper/
+__pycache__/
+.DS_Store
