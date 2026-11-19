@@ -16,13 +16,13 @@ An Emby plugin that fills in media info for the main title of Blu-ray BDMV folde
 
 ## Install
 
-Download the package for your server from [0.2.0 Beta](https://github.com/jerrykuku/emby-bluray-mediainfo/releases/tag/v0.2.0-beta).
+Download the package for your server from [Releases](https://github.com/jerrykuku/emby-bluray-mediainfo/releases).
 
 | Platform | Package |
 | --- | --- |
-| Linux x86_64 | [Linux x86_64](https://github.com/jerrykuku/emby-bluray-mediainfo/releases/download/v0.2.0-beta/Emby-BlurayMainTitle-0.2.0-linux-x86_64-static.zip) |
-| UGREEN NAS with RK3588 | [RK3588 ARM64](https://github.com/jerrykuku/emby-bluray-mediainfo/releases/download/v0.2.0-beta/Emby-BlurayMainTitle-0.2.0-rk3588-arm64-static.zip) |
-| Synology DSM native Emby | [Synology DSM](https://github.com/jerrykuku/emby-bluray-mediainfo/releases/download/v0.2.0-beta/Emby-BlurayMainTitle-0.2.0-synology-dsm-static.zip) |
+| Linux x86_64 | `*-linux-x86_64-static.zip` |
+| UGREEN NAS with RK3588 | `*-rk3588-arm64-static.zip` |
+| Synology DSM native Emby | `*-synology-dsm-static.zip` |
 
 On Synology, run `uname -m` and use the `aarch64` or `x86_64` folder.
 

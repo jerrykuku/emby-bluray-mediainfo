@@ -16,13 +16,13 @@
 
 ## 安装
 
-从 [0.2.0 Beta](https://github.com/jerrykuku/emby-bluray-mediainfo/releases/tag/v0.2.0-beta) 下载对应平台的安装包。
+从 [Releases](https://github.com/jerrykuku/emby-bluray-mediainfo/releases) 下载对应平台的安装包。
 
 | 平台 | 安装包 |
 | --- | --- |
-| Linux x86_64 | [Linux x86_64](https://github.com/jerrykuku/emby-bluray-mediainfo/releases/download/v0.2.0-beta/Emby-BlurayMainTitle-0.2.0-linux-x86_64-static.zip) |
-| 绿联 RK3588 NAS | [RK3588 ARM64](https://github.com/jerrykuku/emby-bluray-mediainfo/releases/download/v0.2.0-beta/Emby-BlurayMainTitle-0.2.0-rk3588-arm64-static.zip) |
-| 群晖 DSM 原生 Emby | [群晖 DSM](https://github.com/jerrykuku/emby-bluray-mediainfo/releases/download/v0.2.0-beta/Emby-BlurayMainTitle-0.2.0-synology-dsm-static.zip) |
+| Linux x86_64 | `*-linux-x86_64-static.zip` |
+| 绿联 RK3588 NAS | `*-rk3588-arm64-static.zip` |
+| 群晖 DSM 原生 Emby | `*-synology-dsm-static.zip` |
 
 群晖运行 `uname -m` 后选择 `aarch64` 或 `x86_64` 目录。
 

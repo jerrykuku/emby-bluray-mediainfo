@@ -21,3 +21,7 @@ python3 src/test_probe.py ./static-helper/bluray-main-title
 探测测试需要带 `libx264` 和 `libx265` 的 FFmpeg 及 tsMuxeR 2.7.0。双层杜比视界测试可通过 `--dovi-sample` 指定 FFmpeg FATE 的 `mov/dovi-p7.mp4`。
 
 DLL 在 `src/bin/Release/net6.0/`，静态探测程序在 `static-helper/`。
+
+## 发布
+
+在 GitHub Actions 手动运行 **Build and release** 可验证构建并下载三个 ZIP。推送与项目版本一致的 `vX.Y.Z`、`vX.Y.Z-beta` 或 `vX.Y.Z-beta.N` 标签后，Actions 会在探测测试和四个静态载荷的重新链接检查通过后发布。带 `-beta` 的版本发布为预发行版。
