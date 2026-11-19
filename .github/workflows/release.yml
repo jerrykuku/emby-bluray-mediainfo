@@ -173,10 +173,18 @@ jobs:
       - name: Verify the package on Emby 4.10.2.0 armhf
         if: matrix.arch == 'armv7l'
         run: |
+          sudo apt-get install -y --no-install-recommends qemu-system-arm cpio
           curl -fLsS --retry 3 --max-time 180 \
             https://github.com/MediaBrowser/Emby.Releases/releases/download/4.10.2.0/emby-server-deb_4.10.2.0_armhf.deb \
             -o out/emby-armhf.deb
-          sh tools/test-emby-armhf.sh out/emby-armhf.deb out/install/*/plugins out/fixtures
+          curl -fLsS --retry 3 --max-time 120 \
+            https://dl-cdn.alpinelinux.org/alpine/v3.22/releases/armv7/netboot-3.22.0/vmlinuz-lts \
+            -o out/vmlinuz-armv7
+          curl -fLsS --retry 3 --max-time 120 \
+            https://dl-cdn.alpinelinux.org/alpine/v3.22/releases/armv7/netboot-3.22.0/initramfs-lts \
+            -o out/initramfs-armv7
+          sh tools/test-emby-armhf.sh out/emby-armhf.deb out/install/*/plugins out/fixtures \
+            out/vmlinuz-armv7 out/initramfs-armv7
 
   publish:
     if: github.event_name == 'push' && github.ref_type == 'tag'

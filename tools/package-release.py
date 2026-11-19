@@ -31,7 +31,7 @@ def package(inputs, docs, output):
     with TemporaryDirectory() as work:
         work = Path(work)
         source = work / "source"
-        copytree(SOURCE, source, ignore=lambda _, names: {".gitignore", "bin", "obj"}.intersection(names))
+        copytree(SOURCE, source, ignore=lambda _, names: {".gitignore", "bin", "obj", "__pycache__"}.intersection(names))
         copytree(docs, source / "third-party")
         for archive, (license_path, target) in LICENSES.items():
             with open_tar(docs / (archive + ".tar.xz")) as tar:

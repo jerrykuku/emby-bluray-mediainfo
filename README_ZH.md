@@ -33,7 +33,7 @@
 
 ## 兼容性
 
-- 已验证 Emby 4.10.2.0，覆盖 Linux x86_64、ARM64 及 QEMU 下的 Debian ARMv7。
+- 已验证 Emby 4.10.2.0，覆盖 Linux x86_64、ARM64，以及 QEMU ARMv7 虚拟机中的官方 armhf 包。
 - 绿联 RK3588 NAS · 用户已验证，使用通用 Linux ARM64 包。
 - 群晖 DSM 真机待测。
 

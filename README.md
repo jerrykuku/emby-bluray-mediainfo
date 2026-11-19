@@ -33,7 +33,7 @@ On Synology, run `uname -m` and use the `aarch64` or `x86_64` folder.
 
 ## Compatibility
 
-- Emby 4.10.2.0 on Linux x86_64 and ARM64, and on Debian ARMv7 under QEMU.
+- Emby 4.10.2.0 on Linux x86_64 and ARM64, and in a QEMU ARMv7 VM with the official armhf package.
 - UGREEN RK3588 NAS · verified by the user with the Linux ARM64 package.
 - Synology DSM hardware testing is pending.
 

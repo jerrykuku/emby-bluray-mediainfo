@@ -81,6 +81,7 @@ def test_emby(endpoint, plugin_version):
     assert {Path(item["Path"]).name for item in before.values()} == {
         "Fixture Folder (2026)", "Fixture Image (2026).bluray.iso"
     }
+    assert all(not item["MediaSources"][0].get("MediaStreams") for item in before.values())
     task = plugin_task()
     assert task["State"] == "Idle"
     request("ScheduledTasks/Running/" + task["Id"], {})
