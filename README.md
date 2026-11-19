@@ -1,17 +1,35 @@
-# Emby Blu-ray Main Title Media Info
+<div align="center">
 
-给 Emby 里的 BDMV 和蓝光 ISO 补齐片长、章节、HDR10、杜比视界、音轨和字幕信息。保留原片源路径和已有轨道索引。
+# emby-bluray-mediainfo
 
-## 下载
+An Emby plugin that fills in media info for the main title of Blu-ray BDMV folders and ISO images.
 
-[0.2.0 Beta](https://github.com/jerrykuku/emby-bluray-main-title/releases/tag/v0.2.0-beta) 提供绿联 RK3588 ARM64、Linux x86_64 和群晖原生 Emby 安装包。群晖用 `uname -m` 确认架构后选择 `aarch64` 或 `x86_64` 目录。
+**English** · [简体中文](README_ZH.md)
 
-## 安装
+</div>
 
-1. 停止 Emby，把压缩包里的 `Emby.BlurayMainTitle.dll` 和 `bluray-main-title` 复制到 Emby 数据目录的 `plugins`。Docker 对应容器内的 `/config/plugins`。
-2. 确认 `bluray-main-title` 有执行权限，再启动 Emby。
-3. 在「计划任务 → 媒体库」运行 **Fill Blu-ray main title media info**。
+## Features
 
-原盘需未加密。`smb://` 和 `nfs://` 条目需要 Emby 所在系统有对应挂载。已在 Linux ARM64 和 x86_64 的 Emby 4.10.2.0 上验证，群晖 DSM 和绿联 UGOS 真机待测。
+- Adds runtime, chapters, HDR10 and Dolby Vision details, audio tracks, and subtitles.
+- Keeps the original media path and existing stream indexes.
+- Reads unencrypted discs. `smb://` and `nfs://` paths need a matching mount accessible to Emby.
 
-[构建与测试](BUILD.md) · [MIT](LICENSE) · [第三方许可证](THIRD_PARTY_NOTICES.md)
+## Install
+
+Download the package for your server from [0.2.0 Beta](https://github.com/jerrykuku/emby-bluray-mediainfo/releases/tag/v0.2.0-beta).
+
+| Platform | Package |
+| --- | --- |
+| Linux x86_64 | [Linux x86_64](https://github.com/jerrykuku/emby-bluray-mediainfo/releases/download/v0.2.0-beta/Emby-BlurayMainTitle-0.2.0-linux-x86_64-static.zip) |
+| UGREEN NAS with RK3588 | [RK3588 ARM64](https://github.com/jerrykuku/emby-bluray-mediainfo/releases/download/v0.2.0-beta/Emby-BlurayMainTitle-0.2.0-rk3588-arm64-static.zip) |
+| Synology DSM native Emby | [Synology DSM](https://github.com/jerrykuku/emby-bluray-mediainfo/releases/download/v0.2.0-beta/Emby-BlurayMainTitle-0.2.0-synology-dsm-static.zip) |
+
+On Synology, run `uname -m` and use the `aarch64` or `x86_64` folder.
+
+1. Stop Emby. Copy `Emby.BlurayMainTitle.dll` and `bluray-main-title` into `plugins` in Emby's data directory (`/config/plugins` inside Docker).
+2. Run `chmod +x bluray-main-title` in that directory, then start Emby.
+3. Under **Scheduled Tasks → Library**, run **Fill Blu-ray main title media info**.
+
+Tested with Emby 4.10.2.0 on Linux ARM64 and x86_64. Testing on Synology DSM and UGREEN UGOS is pending.
+
+[Build and test (中文)](BUILD.md) · [MIT](LICENSE) · [Third-party licenses](THIRD_PARTY_NOTICES.md)
