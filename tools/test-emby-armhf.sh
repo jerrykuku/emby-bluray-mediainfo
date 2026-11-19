@@ -29,10 +29,20 @@ docker rm "$container" >/dev/null
 container=
 ar -p "$package" data.tar.gz | tar -xzf - -C "$root"
 gzip -dc "$modules" | (cd "$root" && cpio -id 'lib/modules/*')
-mkdir -p "$root/config/plugins" "$root/config/config"
+mkdir -p "$root/config/plugins" "$root/config/config" "$root/config/data"
 cp -p "$plugins/Emby.BlurayMainTitle.dll" "$plugins/bluray-main-title" "$root/config/plugins/"
 cp -R "$fixtures" "$root/fixtures"
-printf '%s\n' '<ServerConfiguration><EnableRemoteAccess>false</EnableRemoteAccess><EnableUPnP>false</EnableUPnP></ServerConfiguration>' > "$root/config/config/system.xml"
+printf '%s\n' '<ServerConfiguration><IsStartupWizardCompleted>true</IsStartupWizardCompleted><EnableUPnP>false</EnableUPnP></ServerConfiguration>' > "$root/config/config/system.xml"
+python3 tests/test_emby_armhf.py --seed "$root/config/data/authentication.db" "$work/key"
+
+cat > "$root/bin/fixture-ffprobe" <<'GUEST'
+#!/bin/sh
+for argument do
+    case "$argument" in */fixtures/*) exit 1 ;; esac
+done
+exec /opt/emby-server/bin/ffprobe "$@"
+GUEST
+chmod +x "$root/bin/fixture-ffprobe"
 
 cat > "$root/init" <<'GUEST'
 #!/bin/sh
@@ -47,7 +57,9 @@ ip link set lo up
 ip link set eth0 up
 ip addr add 10.0.2.15/24 dev eth0
 test "$(uname -m)" = armv7l
-EMBY_DATA=/config exec /opt/emby-server/bin/emby-server
+cd /opt/emby-server
+exec ./system/EmbyServer -programdata /config -ffdetect /opt/emby-server/bin/ffdetect \
+    -ffmpeg /opt/emby-server/bin/ffmpeg -ffprobe /bin/fixture-ffprobe
 GUEST
 chmod +x "$root/init"
 (cd "$root" && find . -print0 | cpio -0 -o -H newc | gzip -1 > "$work/rootfs.gz")
@@ -58,7 +70,7 @@ qemu-system-arm -M virt -cpu cortex-a15 -smp 2 -m 1536 -nographic -no-reboot \
     -netdev "user,id=net0,restrict=on,hostfwd=tcp:127.0.0.1:$port-:8096" \
     -device virtio-net-device,netdev=net0 > "$work/console.log" 2>&1 &
 vm=$!
-if ! python3 tests/test_emby_armhf.py "$port"; then
-    grep -Ei 'Run /init|OS/Process|Unhandled exception|error while loading|kernel panic|No such file|qemu-system-arm:' "$work/console.log" || true
+if ! python3 tests/test_emby_armhf.py "$port" "$work/key"; then
+    grep -Ei 'Run /init|OS/Process|Unhandled exception|error while loading|kernel panic|No such file|qemu-system-arm:|denied|forbidden' "$work/console.log" || true
     exit 1
 fi

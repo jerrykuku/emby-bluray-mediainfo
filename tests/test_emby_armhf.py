@@ -4,6 +4,7 @@ import http.client
 import json
 from pathlib import Path
 import secrets
+import sqlite3
 import sys
 import time
 import urllib.error
@@ -24,27 +25,46 @@ def wait_for(check):
     raise RuntimeError(f"Timed out waiting for {check.__name__}")
 
 
-def test_emby(endpoint, plugin_version):
+def seed_api_key(database, key_file):
+    # This is the key schema used by the pinned Emby 4.10.2.0 test server.
+    key = secrets.token_hex(16)
+    now = int(time.time())
+    with sqlite3.connect(database) as db:
+        db.executescript("""
+            CREATE TABLE Devices2 (Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ReportedDeviceId TEXT NOT NULL, ReportedName TEXT NOT NULL,
+                CustomName TEXT, Capabilities TEXT, IpAddress TEXT) STRICT;
+            CREATE TABLE Tokens_2 (Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                AccessToken TEXT NOT NULL, DeviceId INT NOT NULL, AppName TEXT NOT NULL,
+                AppVersion TEXT NOT NULL, UserId INT, IsActive INT NOT NULL,
+                DateCreatedInt INT NOT NULL, DateLastActivityInt INT NOT NULL,
+                FOREIGN KEY(DeviceId) REFERENCES Devices2(Id)) STRICT;
+            INSERT INTO Devices2 (Id, ReportedDeviceId, ReportedName)
+                VALUES (1, 'armhf-release-test', 'ARMv7 release test');
+        """)
+        db.execute("""INSERT INTO Tokens_2 (AccessToken, DeviceId, AppName, AppVersion,
+            IsActive, DateCreatedInt, DateLastActivityInt)
+            VALUES (?, 1, 'Blu-ray Release Test', '4.10.2.0', 1, ?, ?)""", (key, now, now))
+    key_file.write_text(key, encoding="ascii")
+    key_file.chmod(0o600)
+
+
+def test_emby(endpoint, plugin_version, key):
+    client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     headers = {
         "Content-Type": "application/json",
-        "X-Emby-Authorization": 'MediaBrowser Client="Blu-ray Test", Device="Loopback", DeviceId="armhf-test", Version="1.0"',
+        "X-Emby-Token": key,
     }
 
     def request(path, data=None):
         payload = json.dumps(data).encode() if data is not None else None
         req = urllib.request.Request(endpoint + path, data=payload, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as response:
+        with client.open(req, timeout=10) as response:
             body = response.read()
         return json.loads(body) if body else None
 
     info = wait_for(lambda: request("System/Info/Public"))
     assert info["Version"] == "4.10.2.0", info["Version"]
-    credentials = {"Username": "BlurayFixture", "Pw": secrets.token_urlsafe(24)}
-    request("Startup/User", {"Name": credentials["Username"], "Password": credentials["Pw"]})
-    request("Startup/RemoteAccess", {"EnableRemoteAccess": False, "EnableAutomaticPortMapping": False})
-    request("Startup/Complete", {})
-    headers["X-Emby-Token"] = request("Users/AuthenticateByName", credentials)["AccessToken"]
-
     plugins = request("Plugins")
     assert any(
         item.get("Name") == "Blu-ray Main Title Media Info" and item.get("Version") == plugin_version
@@ -108,6 +128,10 @@ def test_emby(endpoint, plugin_version):
 
 
 if __name__ == "__main__":
-    project = Path(__file__).resolve().parents[1] / "src" / "Emby.BlurayMainTitle.csproj"
-    version = ElementTree.parse(project).findtext("./PropertyGroup/Version")
-    test_emby(f"http://127.0.0.1:{int(sys.argv[1])}/emby/", version + ".0")
+    if sys.argv[1] == "--seed":
+        seed_api_key(Path(sys.argv[2]), Path(sys.argv[3]))
+    else:
+        project = Path(__file__).resolve().parents[1] / "src" / "Emby.BlurayMainTitle.csproj"
+        version = ElementTree.parse(project).findtext("./PropertyGroup/Version")
+        key = Path(sys.argv[2]).read_text(encoding="ascii")
+        test_emby(f"http://127.0.0.1:{int(sys.argv[1])}/emby/", version + ".0", key)
