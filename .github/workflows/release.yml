@@ -41,7 +41,7 @@ jobs:
         run: |
           dotnet run -c Release --project tests/emby_bluray_paths
           dotnet build -c Release src/Emby.BlurayMainTitle.csproj
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: runner.arch == 'X64'
         with:
           name: managed
@@ -61,12 +61,12 @@ jobs:
             sh src/build-static-helper.sh out/sources out/native
           '
           tar -C out/native -cf out/native.tar .
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: native-${{ matrix.arch }}
           path: out/native.tar
           if-no-files-found: error
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: runner.arch == 'X64'
         with:
           name: sources
@@ -81,7 +81,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           path: out
       - name: Create the three release ZIPs
@@ -94,7 +94,7 @@ jobs:
           curl -fLsS --retry 3 https://raw.githubusercontent.com/gcc-mirror/gcc/releases/gcc-14.2.0/COPYING.RUNTIME -o out/sources/COPYING.RUNTIME
           curl -fLsS --retry 3 https://raw.githubusercontent.com/gcc-mirror/gcc/releases/gcc-14.2.0/COPYING3 -o out/sources/COPYING3
           python3 tools/package-release.py out out/sources out/release
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: release-packages
           path: out/release/*.zip
@@ -116,7 +116,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: release-packages
           path: out/release
@@ -153,7 +153,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: release-packages
           path: out/release
