@@ -15,7 +15,8 @@ DLL = "Emby.BlurayMainTitle.dll"
 HELPER = "bluray-main-title"
 PLATFORMS = {
     "linux-x86_64-static": ("x86_64",),
-    "rk3588-arm64-static": ("aarch64",),
+    "linux-arm64-static": ("aarch64",),
+    "linux-armhf-static": ("armv7l",),
     "synology-dsm-static": ("x86_64", "aarch64"),
 }
 LICENSES = {

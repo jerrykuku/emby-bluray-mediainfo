@@ -21,7 +21,8 @@
 | 平台 | 安装包 |
 | --- | --- |
 | Linux x86_64 | `*-linux-x86_64-static.zip` |
-| 绿联 RK3588 NAS | `*-rk3588-arm64-static.zip` |
+| Linux ARM64（`aarch64`） | `*-linux-arm64-static.zip` |
+| Linux ARMv7（`armhf`） | `*-linux-armhf-static.zip` |
 | 群晖 DSM 原生 Emby | `*-synology-dsm-static.zip` |
 
 群晖运行 `uname -m` 后选择 `aarch64` 或 `x86_64` 目录。
@@ -30,6 +31,10 @@
 2. 在该目录执行 `chmod +x bluray-main-title`，然后启动 Emby。
 3. 在「计划任务 → 媒体库」运行 **Fill Blu-ray main title media info**。
 
-已在 Linux ARM64 和 x86_64 的 Emby 4.10.2.0 上验证，群晖 DSM 和绿联 UGOS 真机待测。
+## 兼容性
+
+- 已验证 Emby 4.10.2.0，覆盖 Linux x86_64、ARM64 及 QEMU 下的 Debian ARMv7。
+- 绿联 RK3588 NAS · 用户已验证，使用通用 Linux ARM64 包。
+- 群晖 DSM 真机待测。
 
 [构建与测试](BUILD.md) · [MIT](LICENSE) · [第三方许可证](THIRD_PARTY_NOTICES.md)

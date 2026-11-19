@@ -17,14 +17,23 @@ jobs:
         include:
           - runner: ubuntu-24.04
             arch: x86_64
+            platform: linux/amd64
           - runner: ubuntu-24.04-arm
             arch: aarch64
+            platform: linux/arm64
+          - runner: ubuntu-24.04-arm
+            arch: armv7l
+            platform: linux/arm/v7
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
+        if: matrix.arch == 'armv7l'
+        with:
+          platforms: arm
       - name: Check release tag
         if: github.ref_type == 'tag'
         shell: bash
@@ -55,8 +64,10 @@ jobs:
           curl -fLsS --retry 3 -O https://download.videolan.org/pub/videolan/libudfread/libudfread-1.2.0.tar.xz
           curl -fLsS --retry 3 -O https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz
       - name: Build the static helper
+        env:
+          PLATFORM: ${{ matrix.platform }}
         run: |
-          docker run --rm -v "$PWD:/repo" -w /repo alpine:3.22 sh -ec '
+          docker run --rm --platform "$PLATFORM" -v "$PWD:/repo" -w /repo alpine:3.22 sh -ec '
             apk add --no-cache build-base pkgconf meson ninja
             sh src/build-static-helper.sh out/sources out/native
           '
@@ -84,9 +95,9 @@ jobs:
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           path: out
-      - name: Create the three release ZIPs
+      - name: Create the four release ZIPs
         run: |
-          for arch in x86_64 aarch64; do
+          for arch in x86_64 aarch64 armv7l; do
             tar -C "out/native-$arch" -xf "out/native-$arch/native.tar"
             rm "out/native-$arch/native.tar"
           done
@@ -108,14 +119,26 @@ jobs:
         include:
           - runner: ubuntu-24.04
             arch: x86_64
+            platform: linux/amd64
+            variant: linux-x86_64-static
           - runner: ubuntu-24.04-arm
             arch: aarch64
+            platform: linux/arm64
+            variant: linux-arm64-static
+          - runner: ubuntu-24.04-arm
+            arch: armv7l
+            platform: linux/arm/v7
+            variant: linux-armhf-static
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
+        if: matrix.arch == 'armv7l'
+        with:
+          platforms: arm
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: release-packages
@@ -123,14 +146,16 @@ jobs:
       - name: Relink the helpers from the release ZIPs
         env:
           ARCH: ${{ matrix.arch }}
+          PLATFORM: ${{ matrix.platform }}
         run: |
-          docker run --rm -v "$PWD:/repo:ro" -w /repo alpine:3.22 sh -ec '
+          docker run --rm --platform "$PLATFORM" -v "$PWD:/repo:ro" -w /repo alpine:3.22 sh -ec '
             apk add --no-cache build-base unzip
             sh tools/verify-release.sh "$1" /repo/out/release
           ' sh "$ARCH"
       - name: Run the Blu-ray probe tests
         env:
           ARCH: ${{ matrix.arch }}
+          VARIANT: ${{ matrix.variant }}
         run: |
           sudo apt-get update -q
           sudo apt-get install -y ffmpeg libfreetype-dev zlib1g-dev
@@ -140,10 +165,18 @@ jobs:
           cmake --build out/tsmuxer-build --parallel 3
           curl -fLsS --retry 3 https://fate-suite.ffmpeg.org/mov/dovi-p7.mp4 -o out/dovi-p7.mp4
           echo '7e4b69c90f8b1ec8a284d2610ab465fded5751f34a50e56129bcf152d8943c79  out/dovi-p7.mp4' | sha256sum -c
-          if [[ "$ARCH" == x86_64 ]]; then variant=linux-x86_64-static; else variant=rk3588-arm64-static; fi
-          unzip -q out/release/*-"$variant".zip -d out/install
+          fixture_args=()
+          if [[ "$ARCH" == armv7l ]]; then fixture_args=(--emby-fixtures out/fixtures); fi
+          unzip -q out/release/*-"$VARIANT".zip -d out/install
           python3 src/test_probe.py out/install/*/plugins/bluray-main-title \
-            --tsmuxer "$PWD/out/tsmuxer-build/tsMuxer/tsmuxer" --dovi-sample "$PWD/out/dovi-p7.mp4"
+            --tsmuxer "$PWD/out/tsmuxer-build/tsMuxer/tsmuxer" --dovi-sample "$PWD/out/dovi-p7.mp4" "${fixture_args[@]}"
+      - name: Verify the package on Emby 4.10.2.0 armhf
+        if: matrix.arch == 'armv7l'
+        run: |
+          curl -fLsS --retry 3 --max-time 180 \
+            https://github.com/MediaBrowser/Emby.Releases/releases/download/4.10.2.0/emby-server-deb_4.10.2.0_armhf.deb \
+            -o out/emby-armhf.deb
+          sh tools/test-emby-armhf.sh out/emby-armhf.deb out/install/*/plugins out/fixtures
 
   publish:
     if: github.event_name == 'push' && github.ref_type == 'tag'
@@ -163,7 +196,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -- out/release/*.zip
-          test "$#" -eq 3
+          test "$#" -eq 4
           if [[ "$GITHUB_REF_NAME" == *-beta* ]]; then
             set -- --prerelease "$@"
           fi

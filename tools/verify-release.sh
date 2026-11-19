@@ -4,14 +4,15 @@ set -eu
 arch=$1
 bundles=$2
 case "$arch" in
-    x86_64) variant=linux-x86_64-static ;;
-    aarch64) variant=rk3588-arm64-static ;;
+    x86_64) set -- linux-x86_64-static synology-dsm-static ;;
+    aarch64) set -- linux-arm64-static synology-dsm-static ;;
+    armv7l) set -- linux-armhf-static ;;
     *) exit 2 ;;
 esac
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-for package in "$variant" synology-dsm-static; do
+for package do
     set -- "$bundles"/*-"$package".zip
     test "$#" -eq 1
     archive=$1

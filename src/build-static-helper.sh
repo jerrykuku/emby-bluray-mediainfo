@@ -6,10 +6,12 @@ if [ "$#" -ne 2 ] || [ "$(uname -s)" != Linux ]; then
     printf 'Usage on Linux: %s SOURCE_ARCHIVES_DIR OUTPUT_DIR\n' "$0" >&2
     exit 2
 fi
+abi_flags=
 case "$(uname -m)" in
     aarch64) cpu=armv8-a; machine=AArch64 ;;
+    armv7l|armv8l) cpu=armv7-a; machine=ARM; abi_flags=' -mfpu=vfpv3-d16 -mfloat-abi=hard' ;;
     x86_64) cpu=x86-64; machine='Advanced Micro Devices X86-64' ;;
-    *) printf 'This build supports Linux aarch64 and x86_64.\n' >&2; exit 2 ;;
+    *) printf 'This build supports Linux aarch64, ARMv7 armhf and x86_64.\n' >&2; exit 2 ;;
 esac
 
 source_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
@@ -31,7 +33,7 @@ for name in "$udfread" "$bluray" "$ffmpeg"; do
     tar -xf "$archives/$name.tar.xz" -C "$work"
 done
 prefix=$work/prefix
-export CC=cc CFLAGS="-O2 -march=$cpu" PKG_CONFIG_PATH="$prefix/lib/pkgconfig"
+export CC=cc CFLAGS="-O2 -march=$cpu$abi_flags" PKG_CONFIG_PATH="$prefix/lib/pkgconfig"
 
 meson setup "$work/udf-build" "$work/$udfread" --prefix="$prefix" --libdir=lib \
     --default-library=static --buildtype=release
@@ -65,6 +67,9 @@ cc -static "$work/bluray-main-title.o" "$work/stream-probe.o" \
     -o "$work/bluray-main-title"
 
 readelf -h "$work/bluray-main-title" | grep -q "Machine:.*$machine"
+if [ "$machine" = ARM ]; then
+    readelf -h "$work/bluray-main-title" | grep -q 'hard-float ABI'
+fi
 if readelf -l "$work/bluray-main-title" | grep -q 'INTERP'; then
     printf 'Expected a static helper.\n' >&2
     exit 1

@@ -24,4 +24,4 @@ DLL 在 `src/bin/Release/net6.0/`，静态探测程序在 `static-helper/`。
 
 ## 发布
 
-在 GitHub Actions 手动运行 **Build and release** 可验证构建并下载三个 ZIP。推送与项目版本一致的 `vX.Y.Z`、`vX.Y.Z-beta` 或 `vX.Y.Z-beta.N` 标签后，Actions 会在探测测试和四个静态载荷的重新链接检查通过后发布。带 `-beta` 的版本发布为预发行版。
+在 GitHub Actions 手动运行 **Build and release** 可验证构建并下载四个 ZIP。推送与项目版本一致的 `vX.Y.Z`、`vX.Y.Z-beta` 或 `vX.Y.Z-beta.N` 标签后，Actions 会检查五个载荷的重新链接、原盘探测和 ARMv7 的 Emby 4.10.2.0 回填，再发布。带 `-beta` 的版本发布为预发行版。

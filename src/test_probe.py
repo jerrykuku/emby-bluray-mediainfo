@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -51,6 +52,7 @@ def test(helper, ffmpeg, tsmuxer, root):
     for unsupported in (bad_disc, clip, root, root / "missing.iso"):
         result = subprocess.run([helper, unsupported], capture_output=True, timeout=10)
         assert result.returncode != 0 and not result.stdout, unsupported
+    return folder, iso
 
 
 def test_uhd(helper, ffmpeg, tsmuxer, root, dovi_sample):
@@ -101,8 +103,13 @@ if __name__ == "__main__":
     parser.add_argument("--ffmpeg", default="ffmpeg")
     parser.add_argument("--tsmuxer", default="tsMuxeR")
     parser.add_argument("--dovi-sample", type=Path, help="Optional FFmpeg FATE mov/dovi-p7.mp4 fixture")
+    parser.add_argument("--emby-fixtures", type=Path, help="Save the SDR discs for the Emby integration test")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as directory:
-        test(args.helper.resolve(), args.ffmpeg, args.tsmuxer, Path(directory))
+        folder, iso = test(args.helper.resolve(), args.ffmpeg, args.tsmuxer, Path(directory))
         test_uhd(args.helper.resolve(), args.ffmpeg, args.tsmuxer, Path(directory), args.dovi_sample)
+        if args.emby_fixtures:
+            args.emby_fixtures.mkdir(parents=True)
+            shutil.move(folder, args.emby_fixtures / "Fixture Folder (2026)")
+            shutil.move(iso, args.emby_fixtures / "Fixture Image (2026).bluray.iso")
     print("BDMV, Blu-ray ISO, multi-clip runtime, track metadata, HDR and invalid inputs passed.")

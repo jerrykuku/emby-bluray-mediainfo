@@ -21,7 +21,8 @@ Download the package for your server from [Releases](https://github.com/jerrykuk
 | Platform | Package |
 | --- | --- |
 | Linux x86_64 | `*-linux-x86_64-static.zip` |
-| UGREEN NAS with RK3588 | `*-rk3588-arm64-static.zip` |
+| Linux ARM64 (`aarch64`) | `*-linux-arm64-static.zip` |
+| Linux ARMv7 (`armhf`) | `*-linux-armhf-static.zip` |
 | Synology DSM native Emby | `*-synology-dsm-static.zip` |
 
 On Synology, run `uname -m` and use the `aarch64` or `x86_64` folder.
@@ -30,6 +31,10 @@ On Synology, run `uname -m` and use the `aarch64` or `x86_64` folder.
 2. Run `chmod +x bluray-main-title` in that directory, then start Emby.
 3. Under **Scheduled Tasks → Library**, run **Fill Blu-ray main title media info**.
 
-Tested with Emby 4.10.2.0 on Linux ARM64 and x86_64. Testing on Synology DSM and UGREEN UGOS is pending.
+## Compatibility
+
+- Emby 4.10.2.0 on Linux x86_64 and ARM64, and on Debian ARMv7 under QEMU.
+- UGREEN RK3588 NAS · verified by the user with the Linux ARM64 package.
+- Synology DSM hardware testing is pending.
 
 [Build and test (中文)](BUILD.md) · [MIT](LICENSE) · [Third-party licenses](THIRD_PARTY_NOTICES.md)
