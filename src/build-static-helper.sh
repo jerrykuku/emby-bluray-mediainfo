@@ -22,10 +22,7 @@ bluray=libbluray-1.5.0
 udfread=libudfread-1.2.0
 ffmpeg=ffmpeg-8.1.3
 
-printf '%s  %s\n' \
-    f676408e91a5d321abf8b8d4dfdae36205c297dab5c54c3ec519639025f474a2 "$archives/$bluray.tar.xz" \
-    bb477cbd4cfbfc7787d9d05b71ee5e70430f5cfebf1297497f7e83547958050f "$archives/$udfread.tar.xz" \
-    7138d28c96d9d3e3af4ee3d8cad72741f8ffb40da90c1112235dea3ecd3178a3 "$archives/$ffmpeg.tar.xz" | sha256sum -c -
+(cd "$archives" && sha256sum -c "$source_dir/source-archives.sha256")
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT

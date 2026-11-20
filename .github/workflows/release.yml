@@ -3,6 +3,8 @@ name: Build and release
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
 
@@ -56,21 +58,39 @@ jobs:
           name: managed
           path: src/bin/Release/net6.0/Emby.BlurayMainTitle.dll
           if-no-files-found: error
+      - name: Prepare the native toolchain
+        id: toolchain
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          docker build --platform "$PLATFORM" --tag bluray-toolchain - <<'EOF'
+          FROM alpine:3.22
+          RUN apk add --no-cache build-base pkgconf meson ninja
+          EOF
+          packages=$(docker run --rm --platform "$PLATFORM" bluray-toolchain apk info -v)
+          fingerprint=$(printf '%s\n' "$packages" | sort | sha256sum | cut -d ' ' -f 1)
+          printf 'fingerprint=%s\n' "$fingerprint" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        id: native-cache
+        with:
+          path: out/native.tar
+          key: native-${{ matrix.arch }}-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('src/*.c', 'src/*.h', 'src/build-static-helper.sh', 'src/source-archives.sha256') }}
       - name: Download the library sources
+        if: matrix.arch == 'x86_64' || steps.native-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p out/sources
           cd out/sources
           curl -fLsS --retry 3 -O https://download.videolan.org/pub/videolan/libbluray/1.5.0/libbluray-1.5.0.tar.xz
           curl -fLsS --retry 3 -O https://download.videolan.org/pub/videolan/libudfread/libudfread-1.2.0.tar.xz
           curl -fLsS --retry 3 -O https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz
+          sha256sum -c "$GITHUB_WORKSPACE/src/source-archives.sha256"
       - name: Build the static helper
+        if: steps.native-cache.outputs.cache-hit != 'true'
         env:
           PLATFORM: ${{ matrix.platform }}
         run: |
-          docker run --rm --platform "$PLATFORM" -v "$PWD:/repo" -w /repo alpine:3.22 sh -ec '
-            apk add --no-cache build-base pkgconf meson ninja
+          docker run --rm --platform "$PLATFORM" -v "$PWD:/repo" -w /repo bluray-toolchain \
             sh src/build-static-helper.sh out/sources out/native
-          '
           tar -C out/native -cf out/native.tar .
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
@@ -84,6 +104,33 @@ jobs:
           path: out/sources/
           if-no-files-found: error
 
+  fixtures:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Generate Blu-ray and UHD probe fixtures
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y ffmpeg libfreetype-dev zlib1g-dev
+          git clone --depth 1 --branch 2.7.0 https://github.com/justdan96/tsMuxer.git out/tsmuxer
+          test "$(git -C out/tsmuxer rev-parse HEAD)" = f06ac394c55ccee1cb76ae54f4636532a2d10253
+          cmake -S out/tsmuxer -B out/tsmuxer-build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build out/tsmuxer-build --parallel 3
+          curl -fLsS --retry 3 --max-time 90 https://fate-suite.ffmpeg.org/mov/dovi-p7.mp4 -o out/dovi-p7.mp4
+          echo '7e4b69c90f8b1ec8a284d2610ab465fded5751f34a50e56129bcf152d8943c79  out/dovi-p7.mp4' | sha256sum -c
+          python3 src/test_probe.py --prepare-fixtures out/probe-fixtures \
+            --tsmuxer "$PWD/out/tsmuxer-build/tsMuxer/tsmuxer" --dovi-sample "$PWD/out/dovi-p7.mp4"
+          test -s 'out/probe-fixtures/Dolby Vision.bluray.iso'
+          tar -C out -cf out/probe-fixtures.tar probe-fixtures
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: probe-fixtures
+          path: out/probe-fixtures.tar
+          if-no-files-found: error
+
   package:
     needs: build
     runs-on: ubuntu-24.04
@@ -95,6 +142,7 @@ jobs:
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           path: out
+          pattern: '{managed,sources,native-*}'
       - name: Create the four release ZIPs
         run: |
           for arch in x86_64 aarch64 armv7l; do
@@ -112,7 +160,7 @@ jobs:
           if-no-files-found: error
 
   verify:
-    needs: package
+    needs: [package, fixtures]
     strategy:
       fail-fast: false
       matrix:
@@ -143,6 +191,10 @@ jobs:
         with:
           name: release-packages
           path: out/release
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: probe-fixtures
+          path: out
       - name: Relink the helpers from the release ZIPs
         env:
           ARCH: ${{ matrix.arch }}
@@ -157,22 +209,16 @@ jobs:
           ARCH: ${{ matrix.arch }}
           VARIANT: ${{ matrix.variant }}
         run: |
-          sudo apt-get update -q
-          sudo apt-get install -y ffmpeg libfreetype-dev zlib1g-dev
-          git clone --depth 1 --branch 2.7.0 https://github.com/justdan96/tsMuxer.git out/tsmuxer
-          test "$(git -C out/tsmuxer rev-parse HEAD)" = f06ac394c55ccee1cb76ae54f4636532a2d10253
-          cmake -S out/tsmuxer -B out/tsmuxer-build -G Ninja -DCMAKE_BUILD_TYPE=Release
-          cmake --build out/tsmuxer-build --parallel 3
-          curl -fLsS --retry 3 https://fate-suite.ffmpeg.org/mov/dovi-p7.mp4 -o out/dovi-p7.mp4
-          echo '7e4b69c90f8b1ec8a284d2610ab465fded5751f34a50e56129bcf152d8943c79  out/dovi-p7.mp4' | sha256sum -c
+          tar -C out -xf out/probe-fixtures.tar
           fixture_args=()
           if [[ "$ARCH" == armv7l ]]; then fixture_args=(--emby-fixtures out/fixtures); fi
           unzip -q out/release/*-"$VARIANT".zip -d out/install
           python3 src/test_probe.py out/install/*/plugins/bluray-main-title \
-            --tsmuxer "$PWD/out/tsmuxer-build/tsMuxer/tsmuxer" --dovi-sample "$PWD/out/dovi-p7.mp4" "${fixture_args[@]}"
+            --fixtures out/probe-fixtures "${fixture_args[@]}"
       - name: Verify the package on Emby 4.10.2.0 armhf
         if: matrix.arch == 'armv7l'
         run: |
+          sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends qemu-system-arm cpio
           curl -fLsS --retry 3 --max-time 180 \
             https://github.com/MediaBrowser/Emby.Releases/releases/download/4.10.2.0/emby-server-deb_4.10.2.0_armhf.deb \

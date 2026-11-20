@@ -12,17 +12,17 @@ def run(*arguments, **kwargs):
     return subprocess.run(arguments, check=True, capture_output=True, text=True, timeout=45, **kwargs)
 
 
-def test(helper, ffmpeg, tsmuxer, root):
-    clip = root / "clip.m2ts"
+def make_sdr(ffmpeg, tsmuxer, scratch, root):
+    clip = scratch / "clip.m2ts"
     run(ffmpeg, "-hide_banner", "-loglevel", "error",
         "-f", "lavfi", "-i", "color=c=green:size=1920x1080:rate=24000/1001",
         "-f", "lavfi", "-i", "sine=frequency=400:sample_rate=48000",
         "-t", "8", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-g", "48", "-sc_threshold", "0",
         "-profile:v", "high", "-level:v", "4.1", "-c:a", "ac3", "-ac", "2",
         "-mpegts_m2ts_mode", "1", clip)
-    subtitle = root / "subtitle.srt"
+    subtitle = scratch / "subtitle.srt"
     subtitle.write_text("1\n00:00:01,000 --> 00:00:06,000\nSynthetic subtitle\n", encoding="utf-8")
-    meta = root / "test.meta"
+    meta = scratch / "test.meta"
     meta.write_text(
         "MUXOPT --blu-ray --split-duration=2s --mplsOffset=123\n"
         f'V_MPEG4/ISO/AVC, "{clip}", track=4113\n'
@@ -30,10 +30,13 @@ def test(helper, ffmpeg, tsmuxer, root):
         f'S_TEXT/UTF8, "{subtitle}", video-width=1920, video-height=1080, fps=23.976, lang=zho\n',
         encoding="utf-8",
     )
+    run(tsmuxer, meta, root / "原盘 BDMV")
+    run(tsmuxer, meta, root / "原盘 image.bluray.iso")
+
+
+def test_sdr(helper, root):
     folder = root / "原盘 BDMV"
     iso = root / "原盘 image.bluray.iso"
-    run(tsmuxer, meta, folder)
-    run(tsmuxer, meta, iso)
     clips = list((folder / "BDMV" / "STREAM").glob("*.m2ts"))
     assert len(clips) > 1, "Test disc must have a multi-clip playlist"
     directory_title = json.loads(run(helper, folder).stdout)
@@ -47,17 +50,15 @@ def test(helper, ffmpeg, tsmuxer, root):
     video, audio, _ = iso_title["Tracks"]
     assert (video["Width"], video["Height"], video["BitDepth"]) == (1920, 1080, 8)
     assert (audio["Channels"], audio["SampleRate"]) == (2, 48000)
-    bad_disc = root / "unreadable.bluray.iso"
-    bad_disc.write_bytes(b"Not a Blu-ray image")
-    for unsupported in (bad_disc, clip, root, root / "missing.iso"):
+    for unsupported in (root / "unreadable.bluray.iso", clips[0], root, root / "missing.iso"):
         result = subprocess.run([helper, unsupported], capture_output=True, timeout=10)
         assert result.returncode != 0 and not result.stdout, unsupported
     return folder, iso
 
 
-def test_uhd(helper, ffmpeg, tsmuxer, root, dovi_sample):
-    video = root / "uhd.hevc"
-    audio = root / "surround.ac3"
+def make_uhd(ffmpeg, tsmuxer, scratch, root, dovi_sample):
+    video = scratch / "uhd.hevc"
+    audio = scratch / "surround.ac3"
     run(ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=blue:size=3840x2160:rate=24",
         "-t", "3", "-vf", "format=yuv420p10le", "-c:v", "libx265", "-preset", "ultrafast", "-x265-params",
         "pools=2:frame-threads=1:log-level=error:repeat-headers=1:keyint=24:scenecut=0:hdr10=1:"
@@ -68,53 +69,82 @@ def test_uhd(helper, ffmpeg, tsmuxer, root, dovi_sample):
         "-t", "3", "-c:a", "ac3", "-b:a", "640k", audio)
 
     def mux_disc(name, enhancement=None):
-        meta = root / f"{name}.meta"
+        meta = scratch / f"{name}.meta"
         clips = f'V_MPEGH/ISO/HEVC, "{video}", fps=24\n'
         if enhancement:
             clips += f'V_MPEGH/ISO/HEVC, "{enhancement}", fps=24\n'
         meta.write_text("MUXOPT --blu-ray-v3 --custom-chapters=00:00:00.000;00:00:01.000\n"
                         + clips + f'A_AC3, "{audio}", lang=eng\n', encoding="utf-8")
-        folder, iso = root / name, root / f"{name}.bluray.iso"
-        run(tsmuxer, meta, folder)
-        run(tsmuxer, meta, iso)
-        result = json.loads(run(helper, folder).stdout)
-        assert result == json.loads(run(helper, iso).stdout)
-        return result, iso
+        run(tsmuxer, meta, root / name)
+        run(tsmuxer, meta, root / f"{name}.bluray.iso")
 
-    hdr, hdr_iso = mux_disc("HDR10")
+    mux_disc("HDR10")
+    if dovi_sample:
+        enhancement = scratch / "el.hevc"
+        run(ffmpeg, "-hide_banner", "-loglevel", "error", "-i", dovi_sample, "-map", "0:v:1",
+            "-c:v", "copy", "-bsf:v", "hevc_mp4toannexb", enhancement)
+        mux_disc("Dolby Vision", enhancement)
+
+
+def test_uhd(helper, root):
+    def compare_disc(name):
+        result = json.loads(run(helper, root / name).stdout)
+        assert result == json.loads(run(helper, root / f"{name}.bluray.iso").stdout)
+        return result
+
+    hdr = compare_disc("HDR10")
     assert hdr["Chapters90k"] == [0, 90000]
     uhd, surround = hdr["Tracks"]
     assert uhd["DynamicRange"] == 1
     assert (uhd["Width"], uhd["Height"], uhd["BitDepth"]) == (3840, 2160, 10)
     assert (uhd["ColorPrimaries"], uhd["ColorTransfer"]) == ("bt2020", "smpte2084")
     assert (surround["Channels"], surround["SampleRate"], surround["BitRate"]) == (6, 48000, 640000)
-    if dovi_sample:
-        enhancement = root / "el.hevc"
-        run(ffmpeg, "-hide_banner", "-loglevel", "error", "-i", dovi_sample, "-map", "0:v:1",
-            "-c:v", "copy", "-bsf:v", "hevc_mp4toannexb", enhancement)
-        dolby, _ = mux_disc("Dolby Vision", enhancement)
+    if (root / "Dolby Vision.bluray.iso").exists():
+        dolby = compare_disc("Dolby Vision")
         assert dolby["Tracks"][0]["DolbyLayer"] == 1
         assert len(dolby["Tracks"]) == 2, "Dolby enhancement data is not a second user video track"
-    return hdr_iso
+    return root / "HDR10.bluray.iso"
+
+
+def make_fixtures(root, args):
+    root.mkdir(parents=True)
+    with tempfile.TemporaryDirectory() as directory:
+        scratch = Path(directory)
+        make_sdr(args.ffmpeg, args.tsmuxer, scratch, root)
+        make_uhd(args.ffmpeg, args.tsmuxer, scratch, root, args.dovi_sample)
+    (root / "unreadable.bluray.iso").write_bytes(b"Not a Blu-ray image")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("helper", type=Path)
+    parser.add_argument("helper", type=Path, nargs="?")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--prepare-fixtures", type=Path, help="Generate shared fixtures without running the probe")
+    mode.add_argument("--fixtures", type=Path, help="Run the probe against previously generated fixtures")
     parser.add_argument("--ffmpeg", default="ffmpeg")
     parser.add_argument("--tsmuxer", default="tsMuxeR")
     parser.add_argument("--dovi-sample", type=Path, help="Optional FFmpeg FATE mov/dovi-p7.mp4 fixture")
     parser.add_argument("--emby-fixtures", type=Path, help="Save Blu-ray and UHD discs for the Emby integration test")
     args = parser.parse_args()
+    if args.prepare_fixtures:
+        if args.helper or args.emby_fixtures:
+            parser.error("--prepare-fixtures only generates disc fixtures")
+        make_fixtures(args.prepare_fixtures, args)
+        raise SystemExit(0)
+    if not args.helper:
+        parser.error("specify the probe executable")
     with tempfile.TemporaryDirectory() as directory:
-        folder, iso = test(args.helper.resolve(), args.ffmpeg, args.tsmuxer, Path(directory))
-        hdr_iso = test_uhd(args.helper.resolve(), args.ffmpeg, args.tsmuxer, Path(directory), args.dovi_sample)
+        fixtures = args.fixtures or Path(directory) / "fixtures"
+        if args.fixtures is None:
+            make_fixtures(fixtures, args)
+        folder, iso = test_sdr(args.helper.resolve(), fixtures)
+        hdr_iso = test_uhd(args.helper.resolve(), fixtures)
         if args.emby_fixtures:
             args.emby_fixtures.mkdir(parents=True)
-            shutil.move(folder, args.emby_fixtures / "Fixture Folder (2026)")
+            shutil.copytree(folder, args.emby_fixtures / "Fixture Folder (2026)")
             shutil.copyfile(iso, args.emby_fixtures / "Fixture Blu-ray (2026).iso")
-            shutil.move(iso, args.emby_fixtures / "Fixture Image (2026).bluray.iso")
+            shutil.copyfile(iso, args.emby_fixtures / "Fixture Image (2026).bluray.iso")
             shutil.copyfile(hdr_iso, args.emby_fixtures / "Fixture UHD (2026).ISO")
-            shutil.move(hdr_iso, args.emby_fixtures / "Fixture HDR10 (2026).bluray.iso")
-            (args.emby_fixtures / "Fixture Unsupported (2026).iso").write_bytes(b"Not a Blu-ray image")
+            shutil.copyfile(hdr_iso, args.emby_fixtures / "Fixture HDR10 (2026).bluray.iso")
+            shutil.copyfile(fixtures / "unreadable.bluray.iso", args.emby_fixtures / "Fixture Unsupported (2026).iso")
     print("BDMV, Blu-ray ISO, multi-clip runtime, track metadata, HDR and invalid inputs passed.")
