@@ -1,4 +1,4 @@
-"""Check that an isolated armhf Emby 4.10.2.0 fills SDR BDMV and ISO entries."""
+"""Check Blu-ray folder and ISO backfill in an isolated armhf Emby 4.10.2.0."""
 
 import http.client
 import json
@@ -50,6 +50,14 @@ def seed_api_key(database, key_file):
 
 
 def test_emby(endpoint, plugin_version, key):
+    fixtures = {
+        "Fixture Folder (2026)": "h264",
+        "Fixture Image (2026).bluray.iso": "h264",
+        "Fixture Blu-ray (2026).iso": "h264",
+        "Fixture HDR10 (2026).bluray.iso": "hevc",
+        "Fixture UHD (2026).ISO": "hevc",
+        "Fixture Unsupported (2026).iso": None,
+    }
     client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     headers = {
         "Content-Type": "application/json",
@@ -83,7 +91,7 @@ def test_emby(endpoint, plugin_version, key):
             {"LibraryOptions": options})
 
     def items():
-        result = request("Items?Recursive=true&IncludeItemTypes=Movie&Fields=Path,MediaSources,MediaStreams")
+        result = request("Items?Recursive=true&IncludeItemTypes=Movie&Fields=Path,MediaSources,MediaStreams,Chapters")
         return {item["Id"]: item for item in result["Items"]}
 
     def library_ready():
@@ -92,15 +100,13 @@ def test_emby(endpoint, plugin_version, key):
             task.get("Key") == "RefreshLibrary" and task["State"] != "Idle"
             for task in request("ScheduledTasks")
         )
-        return result if len(result) == 2 and not scanning else None
+        return result if len(result) == len(fixtures) and not scanning else None
 
     def plugin_task():
         return next(task for task in request("ScheduledTasks") if task["Key"] == "BluRayMainTitleMediaInfo")
 
     before = wait_for(library_ready)
-    assert {Path(item["Path"]).name for item in before.values()} == {
-        "Fixture Folder (2026)", "Fixture Image (2026).bluray.iso"
-    }
+    assert {Path(item["Path"]).name for item in before.values()} == fixtures.keys()
     assert all(not item["MediaSources"][0].get("MediaStreams") for item in before.values())
     task = plugin_task()
     assert task["State"] == "Idle"
@@ -120,11 +126,27 @@ def test_emby(endpoint, plugin_version, key):
         old = before[item_id]["MediaSources"][0]
         source = item["MediaSources"][0]
         assert all(old[key] == source[key] for key in ("Id", "Path", "Container"))
-        assert source["RunTimeTicks"] == item["RunTimeTicks"] == 80_080_000
+        name = Path(source["Path"]).name
+        codec = fixtures[name]
+        if codec is None:
+            assert not source.get("MediaStreams") and not item.get("RunTimeTicks") and not item.get("Chapters"), name
+            print(f"{name}: skipped", flush=True)
+            continue
+        runtime = 80_080_000 if codec == "h264" else 30_000_000
+        assert source["RunTimeTicks"] == item["RunTimeTicks"] == runtime, name
         tracks = [(track["Type"], track["Codec"], track.get("Language") or None)
                   for track in source["MediaStreams"]]
-        assert tracks == [("Video", "h264", None), ("Audio", "ac3", "eng"), ("Subtitle", "pgssub", "zho")]
-        print(f"{Path(source['Path']).name}: 8.008 s, H.264, AC-3, and PGS", flush=True)
+        expected_tracks = [("Video", codec, None), ("Audio", "ac3", "eng")]
+        video = source["MediaStreams"][0]
+        if codec == "h264":
+            expected_tracks.append(("Subtitle", "pgssub", "zho"))
+            assert (video["Width"], video["Height"]) == (1920, 1080), name
+        else:
+            assert (video["Width"], video["Height"], video["BitDepth"]) == (3840, 2160, 10), name
+            assert video["ExtendedVideoType"] == "Hdr10" and video["ColorTransfer"] == "smpte2084", name
+            assert [chapter["StartPositionTicks"] for chapter in item["Chapters"]] == [0, 10_000_000], name
+        assert tracks == expected_tracks, (name, tracks)
+        print(f"{name}: {video['Width']}x{video['Height']} {codec} {video['ExtendedVideoType']}, {runtime / 10_000_000:g} s", flush=True)
 
 
 if __name__ == "__main__":

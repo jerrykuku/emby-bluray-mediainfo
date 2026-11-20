@@ -43,7 +43,7 @@ public sealed class ScanTask : IScheduledTask
         var videos = library.GetItemList(new InternalItemsQuery
         {
             Recursive = true,
-            Containers = new[] { "bluray", "blurayiso" }
+            Containers = new[] { "bluray", "blurayiso", "iso" }
         }).OfType<Video>().ToArray();
 
         for (var index = 0; index < videos.Length; index++)
@@ -56,7 +56,7 @@ public sealed class ScanTask : IScheduledTask
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or Win32Exception or JsonException or TimeoutException)
             {
-                logger.Warn("Skipping Blu-ray item {0} ({1}).", video.InternalId, ex.Message);
+                logger.Warn("Skipping disc item {0} ({1}).", video.InternalId, ex.Message);
             }
             progress.Report(100.0 * (index + 1) / videos.Length);
         }
@@ -81,7 +81,7 @@ public sealed class ScanTask : IScheduledTask
         if (container == "bluray" &&
             string.Equals(Path.GetFileName(path), "BDMV", StringComparison.OrdinalIgnoreCase))
             path = Path.GetDirectoryName(path)!;
-        if (container == "blurayiso" && !path.EndsWith(".iso", StringComparison.OrdinalIgnoreCase))
+        if ((container is "blurayiso" or "iso") && !path.EndsWith(".iso", StringComparison.OrdinalIgnoreCase))
             return;
         if (mounted is not null && !mounted.Contains(path))
             return;

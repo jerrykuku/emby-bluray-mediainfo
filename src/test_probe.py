@@ -79,9 +79,9 @@ def test_uhd(helper, ffmpeg, tsmuxer, root, dovi_sample):
         run(tsmuxer, meta, iso)
         result = json.loads(run(helper, folder).stdout)
         assert result == json.loads(run(helper, iso).stdout)
-        return result
+        return result, iso
 
-    hdr = mux_disc("HDR10")
+    hdr, hdr_iso = mux_disc("HDR10")
     assert hdr["Chapters90k"] == [0, 90000]
     uhd, surround = hdr["Tracks"]
     assert uhd["DynamicRange"] == 1
@@ -92,9 +92,10 @@ def test_uhd(helper, ffmpeg, tsmuxer, root, dovi_sample):
         enhancement = root / "el.hevc"
         run(ffmpeg, "-hide_banner", "-loglevel", "error", "-i", dovi_sample, "-map", "0:v:1",
             "-c:v", "copy", "-bsf:v", "hevc_mp4toannexb", enhancement)
-        dolby = mux_disc("Dolby Vision", enhancement)
+        dolby, _ = mux_disc("Dolby Vision", enhancement)
         assert dolby["Tracks"][0]["DolbyLayer"] == 1
         assert len(dolby["Tracks"]) == 2, "Dolby enhancement data is not a second user video track"
+    return hdr_iso
 
 
 if __name__ == "__main__":
@@ -103,13 +104,17 @@ if __name__ == "__main__":
     parser.add_argument("--ffmpeg", default="ffmpeg")
     parser.add_argument("--tsmuxer", default="tsMuxeR")
     parser.add_argument("--dovi-sample", type=Path, help="Optional FFmpeg FATE mov/dovi-p7.mp4 fixture")
-    parser.add_argument("--emby-fixtures", type=Path, help="Save the SDR discs for the Emby integration test")
+    parser.add_argument("--emby-fixtures", type=Path, help="Save Blu-ray and UHD discs for the Emby integration test")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as directory:
         folder, iso = test(args.helper.resolve(), args.ffmpeg, args.tsmuxer, Path(directory))
-        test_uhd(args.helper.resolve(), args.ffmpeg, args.tsmuxer, Path(directory), args.dovi_sample)
+        hdr_iso = test_uhd(args.helper.resolve(), args.ffmpeg, args.tsmuxer, Path(directory), args.dovi_sample)
         if args.emby_fixtures:
             args.emby_fixtures.mkdir(parents=True)
             shutil.move(folder, args.emby_fixtures / "Fixture Folder (2026)")
+            shutil.copyfile(iso, args.emby_fixtures / "Fixture Blu-ray (2026).iso")
             shutil.move(iso, args.emby_fixtures / "Fixture Image (2026).bluray.iso")
+            shutil.copyfile(hdr_iso, args.emby_fixtures / "Fixture UHD (2026).ISO")
+            shutil.move(hdr_iso, args.emby_fixtures / "Fixture HDR10 (2026).bluray.iso")
+            (args.emby_fixtures / "Fixture Unsupported (2026).iso").write_bytes(b"Not a Blu-ray image")
     print("BDMV, Blu-ray ISO, multi-clip runtime, track metadata, HDR and invalid inputs passed.")

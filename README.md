@@ -12,7 +12,7 @@ An Emby plugin that fills in media info for the main title of Blu-ray BDMV folde
 
 - Adds runtime, chapters, HDR10 and Dolby Vision details, audio tracks, and subtitles.
 - Keeps the original media path and existing stream indexes.
-- Reads unencrypted discs. `smb://` and `nfs://` paths need a matching mount accessible to Emby.
+- Reads unencrypted Blu-ray and UHD discs, including `.iso` and `.bluray.iso` filenames. `smb://` and `nfs://` paths need a matching mount accessible to Emby.
 
 ## Install
 
